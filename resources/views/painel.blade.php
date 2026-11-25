@@ -26,7 +26,7 @@
     <h1>Laboratório DBA x DevOps</h1>
     <p class="sub">Evolução de esquema pelo padrão Expand-Contract (Laravel 12 + PostgreSQL). Dados fictícios.</p>
 
-    <div class="card fase" style="margin-bottom:16px">
+    <div class="card fase" style="margin-bottom:16px" data-fase="{{ $fase[0] }}">
         <h2>Fase atual do esquema</h2>
         <strong>{{ $fase[0] }}</strong>
         <span>{{ $fase[1] }}</span>
