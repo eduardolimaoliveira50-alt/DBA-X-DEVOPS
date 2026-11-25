@@ -1,0 +1,56 @@
+# Pipeline da main (padrão SES: cada merge na main publica). Seção 2.3.1, passo 4.
+#
+#   CI  -> mesmos guardrails e testes do PR, agora sobre o commit que entrou na main.
+#   CD  -> "produção do laboratório": PostgreSQL efêmero no próprio agente, recriado no estado da
+#          versão ANTERIOR da main com massa fictícia, para aplicar só as migrations novas, como numa
+#          produção de verdade. Demonstra:
+#            - conta de serviço de migração (lab_migrator) distinta da conta da aplicação (lab_app);
+#            - menor privilégio: lab_app só tem DML, e o pipeline prova que ela não consegue DDL;
+#            - backup antes da mudança e ensaio de restauração cronometrado (RTO/RPO, seção 2.4);
+#            - verificação de integridade depois da implantação.
+#
+# CUSTO ZERO: só o job Microsoft-hosted gratuito (1.800 min/mês). Não existe servidor, banco ou
+# qualquer recurso do Azure: tudo nasce e morre dentro do agente. O ambiente "producao-lab" do
+# Azure DevOps serve só para registrar o histórico de implantações (gratuito).
+trigger:
+  batch: true
+  branches:
+    include:
+    - main
+pr: none
+
+pool:
+  vmImage: ubuntu-24.04
+
+stages:
+- stage: CI
+  displayName: 'CI (guardrails + testes)'
+  jobs:
+  - job: ci
+    displayName: 'Guardrails + migrations + testes'
+    timeoutInMinutes: 15
+    steps:
+    - template: pipelines/ci-steps.yml
+      parameters:
+        baseRef: HEAD~1
+
+- stage: CD
+  displayName: 'CD (produção do laboratório)'
+  dependsOn: CI
+  condition: succeeded()
+  jobs:
+  - deployment: producao_lab
+    displayName: 'Aplica migrations com a conta de serviço'
+    environment: producao-lab
+    timeoutInMinutes: 15
+    variables:
+      LAB_CLIENTES: 20000
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - checkout: self
+            fetchDepth: 0
+
+          - bash: bash scripts/cd/producao-lab.sh
+            displayName: 'Implantação na produção do laboratório'

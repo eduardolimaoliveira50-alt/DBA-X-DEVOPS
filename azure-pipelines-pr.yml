@@ -1,0 +1,19 @@
+# Validação de PR (padrão SES): não dispara sozinho; é chamado pela política "Build validation"
+# da branch main. O PR só pode ser concluído com este pipeline verde.
+#
+# CUSTO ZERO: usa somente o job Microsoft-hosted gratuito da organização (1 job paralelo,
+# 1.800 min/mês). Nenhum recurso do Azure, nenhum artefato publicado, timeout curto.
+trigger: none
+pr: none
+
+pool:
+  vmImage: ubuntu-24.04
+
+jobs:
+- job: validar_pr
+  displayName: 'CI do PR: guardrails + migrations + testes'
+  timeoutInMinutes: 15
+  steps:
+  - template: pipelines/ci-steps.yml
+    parameters:
+      baseRef: pr
