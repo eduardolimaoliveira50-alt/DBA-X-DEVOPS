@@ -46,16 +46,21 @@ steps:
 - bash: php scripts/ci/classificar-migrations.php "$(BASE_REF)"
   displayName: 'Guardrail: imutabilidade e classificação de risco das migrations'
 
+# Os passos abaixo rodam mesmo se o guardrail reprovar, para registrar a evidência completa
+# (SQL e testes); o job continua falhando e o PR continua bloqueado.
 - bash: bash scripts/ci/sql-pendente.sh "$(BASE_REF)"
+  condition: succeededOrFailed()
   displayName: 'SQL pendente (migrate --pretend no estado anterior) + Squawk'
 
 - bash: |
     set -euo pipefail
     php artisan migrate --env=testing --force --no-interaction
     php artisan migrate:status --env=testing
+  condition: succeededOrFailed()
   displayName: 'Aplica as migrations no banco efêmero'
 
 - bash: php artisan test --env=testing --log-junit "$(Agent.TempDirectory)/junit.xml"
+  condition: succeededOrFailed()
   displayName: 'Testes de integração (PostgreSQL real, desde a versão inicial do esquema)'
 
 - task: PublishTestResults@2
