@@ -7,14 +7,18 @@ use Illuminate\Support\Facades\DB;
 /**
  * Acesso da aplicação à tabela clientes.
  *
- * Versão 1 (estado inicial): lê e grava somente a coluna email.
+ * Versão 2 (fase Migrate, seção 2.3.4): versão intermediária que GRAVA nas duas colunas
+ * (dual-write) e continua LENDO a coluna antiga, compatível com quem ainda usa só "email".
  */
 class ClienteService
 {
     public function cadastrar(string $email): int
     {
+        $email = $this->normalizar($email);
+
         return DB::table('clientes')->insertGetId([
-            'email' => $this->normalizar($email),
+            'email' => $email,
+            'email_corporativo' => $email,
         ]);
     }
 

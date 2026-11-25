@@ -28,8 +28,8 @@ class ClientesFicticiosSeeder extends Seeder
                 if ($temEmail) {
                     $linha['email'] = $email;
                 }
-                // Na produção simulada, metade dos registros antigos ainda não tem a coluna nova preenchida.
-                if ($temCorporativo && (! $temEmail || $n % 2 === 0)) {
+                // Se a coluna nova já existe, a produção simulada já passou pelo backfill.
+                if ($temCorporativo) {
                     $linha['email_corporativo'] = $email;
                 }
                 $lote[] = $linha;

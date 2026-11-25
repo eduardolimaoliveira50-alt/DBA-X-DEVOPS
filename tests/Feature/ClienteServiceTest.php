@@ -27,4 +27,15 @@ class ClienteServiceTest extends TestCase
         $this->assertSame('ana@exemplo.com', $service->emailDe($id));
         $this->assertSame(['ana@exemplo.com'], $service->emails());
     }
+
+    public function test_dual_write_grava_nas_duas_colunas(): void
+    {
+        $id = app(ClienteService::class)->cadastrar('Bia@Exemplo.com');
+
+        $this->assertDatabaseHas('clientes', [
+            'id' => $id,
+            'email' => 'bia@exemplo.com',
+            'email_corporativo' => 'bia@exemplo.com',
+        ]);
+    }
 }
