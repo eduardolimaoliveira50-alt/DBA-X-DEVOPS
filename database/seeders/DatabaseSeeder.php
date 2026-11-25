@@ -25,7 +25,8 @@ class DatabaseSeeder extends Seeder
             User::query()->firstOrCreate(['email' => $email], ['name' => $nome, 'password' => $senha])->syncRoles([$papel]);
         }
 
-        if (! Produto::query()->exists()) {
+        // no Render a carga roda depois, em segundo plano (scripts/render/start.sh), para a porta abrir logo
+        if (! env('ALMOX_SEM_MASSA') && ! Produto::query()->exists()) {
             $this->call(MassaProducaoSeeder::class);
         }
     }

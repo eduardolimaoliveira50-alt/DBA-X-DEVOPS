@@ -58,19 +58,31 @@ class MassaProducaoSeeder extends Seeder
 
     public function run(): void
     {
-        DB::transaction(function () {
+        if (DB::table('produtos')->exists()) {
+            $this->command?->info('Massa de produção: o banco já tem produtos, nada a carregar.');
+
+            return;
+        }
+
+        $movimentacoes = (int) env('ALMOX_MOVIMENTACOES', 300000);
+
+        // tudo ou nada: uma carga interrompida (ex.: contêiner reiniciado) não deixa produtos sem movimentações
+        DB::transaction(function () use ($movimentacoes) {
             DB::table('categorias')->insertOrIgnore(array_map(
                 fn ($nome) => ['nome' => $nome, 'created_at' => now(), 'updated_at' => now()], self::CATEGORIAS));
             $categorias = DB::table('categorias')->orderBy('id')->pluck('id', 'nome');
 
             $this->fornecedores();
             $this->produtos($categorias->values()->all());
+
+            DB::connection()->getDriverName() === 'pgsql'
+                ? $this->movimentacoesPostgres($movimentacoes)
+                : $this->movimentacoesSimples(min($movimentacoes, 2000));
         });
 
-        $movimentacoes = (int) env('ALMOX_MOVIMENTACOES', 300000);
-        DB::connection()->getDriverName() === 'pgsql'
-            ? $this->movimentacoesPostgres($movimentacoes)
-            : $this->movimentacoesSimples(min($movimentacoes, 2000));
+        if (DB::connection()->getDriverName() === 'pgsql') {
+            DB::statement('ANALYZE produtos, fornecedores, movimentacoes');
+        }
 
         $this->command?->info(sprintf('Massa de produção: %d produtos (%d códigos repetidos), %d fornecedores (%d sem CNPJ), %d movimentações.',
             self::PRODUTOS + self::DUPLICADOS, self::DUPLICADOS, self::FORNECEDORES,
@@ -148,7 +160,6 @@ class MassaProducaoSeeder extends Seeder
             SQL, [$usuario, $total]);
 
         $this->recalcularSaldos();
-        DB::statement('ANALYZE produtos, fornecedores, movimentacoes');
     }
 
     private function movimentacoesSimples(int $total): void
