@@ -53,8 +53,8 @@ stages:
     variables:
       GITHUB_REPO: eduardolimaoliveira50-alt/DBA-X-DEVOPS
       GITHUB_BRANCH: almoxarifado
-      RENDER_SERVICE_ID: __RENDER_SERVICE_ID__
-      RENDER_URL: __RENDER_URL__
+      RENDER_SERVICE_ID: srv-dc3jhaon74is73af2v20
+      RENDER_URL: https://almoxarifado-iwpm.onrender.com
     strategy:
       runOnce:
         deploy:
