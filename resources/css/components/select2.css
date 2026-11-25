@@ -1,0 +1,99 @@
+/* ── Dark mode ─────────────────────────────────────────────────────────── */
+
+/* Selection box (permanece dentro do .content-wrapper) */
+html[data-theme='dark'] .content-wrapper .select2-container--bootstrap4 .select2-selection {
+    background: rgba(15, 23, 42, 0.78) !important;
+    border-color: rgba(71, 85, 105, 0.4) !important;
+}
+
+html[data-theme='dark'] .content-wrapper .select2-container--bootstrap4 .select2-selection__rendered {
+    color: #e2e8f0 !important;
+}
+
+html[data-theme='dark'] .content-wrapper .select2-container--bootstrap4 .select2-selection__placeholder {
+    color: #94a3b8 !important;
+}
+
+html[data-theme='dark'] .content-wrapper .select2-container--bootstrap4 .select2-selection__arrow b {
+    border-color: #94a3b8 transparent transparent transparent !important;
+}
+
+html[data-theme='dark'] .content-wrapper .select2-container--bootstrap4.select2-container--open .select2-selection__arrow b {
+    border-color: transparent transparent #94a3b8 transparent !important;
+}
+
+/* Multi-select tags */
+html[data-theme='dark'] .content-wrapper .select2-container--bootstrap4 .select2-selection--multiple {
+    background: rgba(15, 23, 42, 0.78) !important;
+    border-color: rgba(71, 85, 105, 0.4) !important;
+}
+
+html[data-theme='dark'] .content-wrapper .select2-container--bootstrap4 .select2-selection--multiple .select2-selection__choice {
+    background: rgba(37, 99, 235, 0.22) !important;
+    border-color: rgba(37, 99, 235, 0.32) !important;
+    color: #93c5fd !important;
+}
+
+html[data-theme='dark'] .content-wrapper .select2-container--bootstrap4 .select2-selection--multiple .select2-selection__choice__remove {
+    color: #94a3b8 !important;
+}
+
+/* Dropdown (select2 appende ao body, fora do .content-wrapper) */
+html[data-theme='dark'] .select2-container--bootstrap4 .select2-dropdown {
+    background: rgba(22, 30, 48, 0.97) !important;
+    border-color: rgba(71, 85, 105, 0.4) !important;
+}
+
+html[data-theme='dark'] .select2-container--bootstrap4 .select2-search--dropdown .select2-search__field {
+    background: rgba(15, 23, 42, 0.78) !important;
+    border-color: rgba(71, 85, 105, 0.4) !important;
+    color: #e2e8f0 !important;
+}
+
+html[data-theme='dark'] .select2-container--bootstrap4 .select2-search--dropdown .select2-search__field::placeholder {
+    color: #94a3b8 !important;
+}
+
+html[data-theme='dark'] .select2-container--bootstrap4 .select2-results__option {
+    color: #e2e8f0 !important;
+}
+
+html[data-theme='dark'] .select2-container--bootstrap4 .select2-results__option[aria-selected='true'] {
+    background: rgba(37, 99, 235, 0.18) !important;
+    color: #93c5fd !important;
+}
+
+html[data-theme='dark'] .select2-container--bootstrap4 .select2-results__option--highlighted[aria-selected] {
+    background: rgba(37, 99, 235, 0.72) !important;
+    color: #f8fafc !important;
+}
+
+/* ────────────────────────────────────────────────────────────────────────── */
+
+.is-invalid + .select2-container .select2-selection {
+    border-color: #dc3545 !important;
+    padding-right: 2.5rem !important;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%23dc3545' viewBox='0 0 12 12'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath stroke-linejoin='round' d='M5.8 3.6h.4L6 6.5z'/%3e%3ccircle cx='6' cy='8.2' r='.6' fill='%23dc3545' stroke='none'/%3e%3c/svg%3e") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 1.25rem center !important;
+    background-size: 16px 12px !important;
+}
+
+.is-valid + .select2-container .select2-selection {
+    border-color: #28a745 !important;
+    padding-right: 2.5rem !important;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3e%3cpath fill='%2328a745' d='M2.3 6.73L.6 4.53c-.4-1.04.46-1.4 1.1-.8l1.1 1.4 3.4-3.8c.6-.63 1.6-.27 1.2.7l-4 4.6c-.43.5-.8.4-1.1.1z'/%3e%3c/svg%3e") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 1.25rem center !important;
+    background-size: 16px 12px !important;
+}
+
+.select2-container--bootstrap4 .select2-selection--single {
+    min-height: calc(2.25rem + 2px);
+    display: flex;
+    align-items: center;
+}
+
+.select2-container--bootstrap4 .select2-selection__rendered {
+    width: 100%;
+}

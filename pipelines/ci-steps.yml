@@ -1,0 +1,76 @@
+# Passos de CI compartilhados pelo pipeline de PR e pelo da main.
+# PostgreSQL efêmero: o que já vem instalado na imagem Ubuntu do agente Microsoft-hosted (sem Docker e sem
+# nenhum recurso do Azure). Tudo nasce e morre dentro do agente.
+parameters:
+- name: baseRef          # 'pr' = branch de destino do PR; ou uma ref explícita (ex.: HEAD~1)
+  type: string
+  default: pr
+- name: modoEnsaio       # pr | main (main: + backup e restauração cronometrada)
+  type: string
+  default: pr
+
+steps:
+- checkout: self
+  fetchDepth: 0           # histórico completo: guardrail e ensaio comparam com a branch de destino
+  displayName: 'Checkout (histórico completo)'
+
+- bash: |
+    set -euo pipefail
+    if [ "${{ parameters.baseRef }}" = "pr" ]; then
+      ALVO="${SYSTEM_PULLREQUEST_TARGETBRANCH:-refs/heads/main}"
+      B="origin/${ALVO#refs/heads/}"
+    else
+      B="${{ parameters.baseRef }}"
+    fi
+    if ! git rev-parse --verify --quiet "$B^{commit}" >/dev/null; then
+      echo "##vso[task.logissue type=warning]Base $B inexistente (primeiro commit?): comparando com HEAD."
+      B=HEAD
+    fi
+    echo "Base de comparação: $B ($(git rev-parse --short "$B"))"
+    echo "##vso[task.setvariable variable=BASE_REF]$B"
+  displayName: 'Define a base (versão em produção)'
+
+- bash: |
+    set -euo pipefail
+    sudo systemctl start postgresql.service
+    pg_isready -h 127.0.0.1 -t 30
+    sudo -u postgres psql -tAc "SELECT version()"
+    # o mesmo script que o DBA usa nos outros ambientes
+    sudo -u postgres env ALMOX_MIGRATOR_PASSWORD="$ALMOX_MIGRATOR_PASSWORD" ALMOX_APP_PASSWORD="$ALMOX_APP_PASSWORD" \
+      bash scripts/dba/criar-banco.sh almox_testing
+  displayName: 'PostgreSQL efêmero + provisionamento do DBA (banco de testes)'
+
+- bash: |
+    set -euo pipefail
+    php -v | head -1
+    php -r 'exit(extension_loaded("pdo_pgsql") ? 0 : 1);' || { echo "pdo_pgsql ausente"; exit 1; }
+    composer install --no-interaction --prefer-dist --no-progress
+    cp .env.testing.example .env.testing
+    sed -i "s/^DB_PASSWORD=.*/DB_PASSWORD=${ALMOX_MIGRATOR_PASSWORD}/" .env.testing
+    echo "##vso[task.setvariable variable=DEPENDENCIAS_OK]true"
+  displayName: 'composer install + .env.testing (sem credencial de produção)'
+
+- bash: php scripts/ci/classificar-migrations.php "$(BASE_REF)"
+  displayName: 'Guardrail: imutabilidade e classificação de risco das migrations'
+
+# Os passos abaixo rodam mesmo se o guardrail reprovar, para registrar a evidência completa;
+# o job continua falhando e o PR, bloqueado.
+- bash: |
+    set -euo pipefail
+    php artisan migrate --env=testing --force --no-interaction
+    php artisan test --env=testing --log-junit "$(Agent.TempDirectory)/junit.xml"
+  condition: and(succeededOrFailed(), eq(variables['DEPENDENCIAS_OK'], 'true'))
+  displayName: 'Testes automatizados (PostgreSQL, banco vazio)'
+
+- task: PublishTestResults@2
+  condition: and(succeededOrFailed(), eq(variables['DEPENDENCIAS_OK'], 'true'))
+  displayName: 'Publica resultado dos testes'
+  inputs:
+    testResultsFormat: JUnit
+    testResultsFiles: '$(Agent.TempDirectory)/junit.xml'
+    testRunTitle: 'almoxarifado - testes'
+    failTaskOnMissingResultsFile: false
+
+- bash: bash scripts/ci/ensaio-staging.sh "$(BASE_REF)" "${{ parameters.modoEnsaio }}"
+  condition: and(succeededOrFailed(), eq(variables['DEPENDENCIAS_OK'], 'true'))
+  displayName: 'Ensaio em staging (dados no formato da produção)'

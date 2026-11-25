@@ -1,0 +1,25 @@
+# Validação de PR (chamada pela política de build da main). Não dispara sozinho: quem chama é a política.
+#
+#   guardrail (padrão de código) -> testes (banco vazio) -> ENSAIO EM STAGING (dados no formato da produção)
+#
+# CUSTO ZERO: um job no agente Microsoft-hosted gratuito (1.800 min/mês), com timeout.
+trigger: none
+pr: none
+
+pool:
+  vmImage: ubuntu-24.04
+
+variables:
+  # senhas descartáveis do PostgreSQL que nasce e morre no agente (não são segredos de nenhum ambiente)
+  ALMOX_MIGRATOR_PASSWORD: almox-ci-migrator
+  ALMOX_APP_PASSWORD: almox-ci-app
+
+jobs:
+- job: validar_pr
+  displayName: 'Guardrail + testes + ensaio em staging'
+  timeoutInMinutes: 20
+  steps:
+  - template: pipelines/ci-steps.yml
+    parameters:
+      baseRef: pr
+      modoEnsaio: pr

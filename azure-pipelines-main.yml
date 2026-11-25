@@ -1,0 +1,69 @@
+# Pipeline da main: cada merge publica.
+#
+#   CI          -> os mesmos passos do PR sobre o commit que entrou na main, com backup antes da mudança e
+#                  restauração cronometrada (ensaio do plano de recuperação).
+#   PUBLICAÇÃO  -> leva o commit até a URL pública: espelho no GitHub + implantação no Render (plano free).
+#                  As migrations rodam na subida do contêiner, dentro da rede do Render; se falharem, o
+#                  contêiner novo não sobe e a versão anterior continua no ar.
+#
+# CUSTO ZERO: agente Microsoft-hosted gratuito; nenhum recurso do Azure. Tokens em variáveis SECRETAS
+# do pipeline (GITHUB_TOKEN e RENDER_API_KEY).
+parameters:
+- name: publicarForaDaMain
+  displayName: 'Publicar no Render mesmo fora da main (só para ensaio)'
+  type: boolean
+  default: false
+
+trigger:
+  batch: true
+  branches:
+    include:
+    - main
+pr: none
+
+pool:
+  vmImage: ubuntu-24.04
+
+variables:
+  ALMOX_MIGRATOR_PASSWORD: almox-ci-migrator
+  ALMOX_APP_PASSWORD: almox-ci-app
+
+stages:
+- stage: CI
+  displayName: 'CI (guardrail + testes + ensaio com backup e restauração)'
+  jobs:
+  - job: ci
+    displayName: 'Guardrail + testes + ensaio em staging'
+    timeoutInMinutes: 20
+    steps:
+    - template: pipelines/ci-steps.yml
+      parameters:
+        baseRef: HEAD~1
+        modoEnsaio: main
+
+- stage: Publicacao
+  displayName: 'Publicação (Render, plano gratuito)'
+  dependsOn: CI
+  condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), ${{ parameters.publicarForaDaMain }}))
+  jobs:
+  - deployment: render
+    displayName: 'GitHub (espelho) -> Render -> confere a URL'
+    environment: almoxarifado-producao
+    timeoutInMinutes: 25
+    variables:
+      GITHUB_REPO: eduardolimaoliveira50-alt/DBA-X-DEVOPS
+      GITHUB_BRANCH: almoxarifado
+      RENDER_SERVICE_ID: __RENDER_SERVICE_ID__
+      RENDER_URL: __RENDER_URL__
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - checkout: self
+            fetchDepth: 0
+
+          - bash: bash scripts/cd/publicar-render.sh
+            displayName: 'Publica o commit aprovado'
+            env:
+              GITHUB_TOKEN: $(GITHUB_TOKEN)
+              RENDER_API_KEY: $(RENDER_API_KEY)
