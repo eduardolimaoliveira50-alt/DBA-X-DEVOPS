@@ -14,7 +14,9 @@ steps:
 - bash: |
     set -euo pipefail
     if [ "${{ parameters.baseRef }}" = "pr" ]; then
-      B="origin/${SYSTEM_PULLREQUEST_TARGETBRANCH#refs/heads/}"
+      # fora de um PR (execução manual), compara com a main
+      ALVO="${SYSTEM_PULLREQUEST_TARGETBRANCH:-refs/heads/main}"
+      B="origin/${ALVO#refs/heads/}"
     else
       B="${{ parameters.baseRef }}"
     fi
@@ -38,33 +40,34 @@ steps:
 - bash: |
     set -euo pipefail
     php -v | head -1
-    php -m | grep -q pdo_pgsql || { echo "pdo_pgsql ausente"; exit 1; }
+    php -r 'exit(extension_loaded("pdo_pgsql") ? 0 : 1);' || { echo "pdo_pgsql ausente"; exit 1; }
     composer install --no-interaction --prefer-dist --no-progress
     cp .env.testing.example .env.testing
+    echo "##vso[task.setvariable variable=DEPENDENCIAS_OK]true"
   displayName: 'composer install + .env.testing (sem credenciais de produção)'
 
 - bash: php scripts/ci/classificar-migrations.php "$(BASE_REF)"
   displayName: 'Guardrail: imutabilidade e classificação de risco das migrations'
 
-# Os passos abaixo rodam mesmo se o guardrail reprovar, para registrar a evidência completa
-# (SQL e testes); o job continua falhando e o PR continua bloqueado.
+# Os passos abaixo rodam mesmo se o guardrail reprovar (desde que as dependências tenham sido
+# instaladas), para registrar a evidência completa; o job continua falhando e o PR, bloqueado.
 - bash: bash scripts/ci/sql-pendente.sh "$(BASE_REF)"
-  condition: succeededOrFailed()
+  condition: and(succeededOrFailed(), eq(variables['DEPENDENCIAS_OK'], 'true'))
   displayName: 'SQL pendente (migrate --pretend no estado anterior) + Squawk'
 
 - bash: |
     set -euo pipefail
     php artisan migrate --env=testing --force --no-interaction
     php artisan migrate:status --env=testing
-  condition: succeededOrFailed()
+  condition: and(succeededOrFailed(), eq(variables['DEPENDENCIAS_OK'], 'true'))
   displayName: 'Aplica as migrations no banco efêmero'
 
 - bash: php artisan test --env=testing --log-junit "$(Agent.TempDirectory)/junit.xml"
-  condition: succeededOrFailed()
+  condition: and(succeededOrFailed(), eq(variables['DEPENDENCIAS_OK'], 'true'))
   displayName: 'Testes de integração (PostgreSQL real, desde a versão inicial do esquema)'
 
 - task: PublishTestResults@2
-  condition: succeededOrFailed()
+  condition: and(succeededOrFailed(), eq(variables['DEPENDENCIAS_OK'], 'true'))
   displayName: 'Publica resultado dos testes'
   inputs:
     testResultsFormat: JUnit
