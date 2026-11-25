@@ -7,8 +7,8 @@
 # NOT NULL, tabela grande que fica travada enquanto um índice é criado. Por isso, a cada PR:
 #
 #   1. o DBA provisiona o banco de staging (scripts/dba/criar-banco.sh) - mesmo script da produção;
-#   2. o banco é levado ao estado da branch de destino (versão em produção) com a massa de produção
-#      (MassaProducaoSeeder: ~300 mil movimentações, códigos repetidos, fornecedores sem CNPJ);
+#   2. o banco refaz a história da produção: esquema inicial -> carga do sistema antigo (MassaProducaoSeeder:
+#      ~300 mil movimentações, códigos repetidos, fornecedores sem CNPJ) -> migrations já em produção (base);
 #   3. o SQL pendente (migrate --pretend) passa pela análise de bloqueio com o TAMANHO REAL das tabelas;
 #   4. as migrations novas são aplicadas de verdade, cronometradas;
 #   5. a integridade do estoque é conferida com a conta da aplicação (só DML).
@@ -63,12 +63,16 @@ echo "== 2. Staging no estado de $BASE (versão em produção) com a massa de pr
 git worktree add --detach "$TMP/base" "$BASE" >/dev/null 2>&1 || falhar "Não foi possível obter $BASE."
 (cd "$TMP/base" && composer install --no-dev --no-interaction --prefer-dist --no-progress -q) || falhar "composer install da versão base falhou."
 T=$(agora)
-(cd "$TMP/base" && como_migrator php artisan migrate --force --no-interaction) || falhar "As migrations da versão em produção ($BASE) não aplicam num banco novo."
+# a carga do sistema antigo entrou no esquema INICIAL; as migrations seguintes rodaram depois, sobre os dados
+INICIAIS=$(cd "$TMP/base" && ls database/migrations/*.php | awk -F/ '$NF <= "2026_11_20_999999"' | sed 's/^/--path=/')
+(cd "$TMP/base" && como_migrator php artisan migrate --force --no-interaction $INICIAIS) || falhar "O esquema inicial não aplica num banco novo."
 (cd "$TMP/base" && como_migrator php artisan db:seed --force --no-interaction) || falhar "A carga da massa de produção falhou."
+(cd "$TMP/base" && como_migrator php artisan migrate --force --no-interaction) || falhar "As migrations da versão em produção ($BASE) não aplicam sobre os dados."
 T_CARGA=$(dur "$T" "$(agora)")
+PGPASSWORD="$ALMOX_MIGRATOR_PASSWORD" psql -h 127.0.0.1 -U almox_migrator -d $BANCO -qc "ANALYZE" 
 psql_staging -F ' ' -c "SELECT relname, reltuples::bigint FROM pg_class WHERE relkind = 'r' AND relnamespace = 'public'::regnamespace ORDER BY reltuples DESC" > "$TMP/tamanhos.txt"
 echo "Tamanho das tabelas (pg_class.reltuples):"; cat "$TMP/tamanhos.txt"
-md "**Massa de produção carregada em ${T_CARGA}s:** $(awk '$1 ~ /^(movimentacoes|produtos|fornecedores)$/ {printf "%s %s · ", $1, $2}' "$TMP/tamanhos.txt" | sed 's/ · $//')"
+md "**Produção reconstruída em ${T_CARGA}s** (esquema inicial + carga do sistema antigo + migrations da base): $(awk '$1 ~ /^(movimentacoes|produtos|fornecedores)$/ {printf "%s %s · ", $1, $2}' "$TMP/tamanhos.txt" | sed 's/ · $//')"
 md ""
 
 echo "== 3. Migrations pendentes e SQL que vai rodar"

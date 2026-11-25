@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Massa fictícia com o formato da produção (o "sistema antigo" migrado para cá). Usada no ensaio em staging do
@@ -16,6 +17,10 @@ use Illuminate\Support\Facades\DB;
  *  - MOVIMENTAÇÕES em volume (centenas de milhares de linhas): DDL que trava a tabela vira indisponibilidade.
  *
  * Determinística (setseed): toda execução gera os mesmos dados. Volume: ALMOX_MOVIMENTACOES (padrão 300 mil).
+ *
+ * Na produção real, essa carga entrou no ESQUEMA INICIAL, antes das migrations seguintes. O ensaio em staging
+ * reproduz essa ordem (scripts/ci/ensaio-staging.sh). Num banco novo em que as regras já existem (UNIQUE no
+ * código, CNPJ obrigatório), a massa respeita as regras em vez de quebrar.
  */
 class MassaProducaoSeeder extends Seeder
 {
@@ -74,11 +79,13 @@ class MassaProducaoSeeder extends Seeder
 
     private function fornecedores(): void
     {
+        $cnpjObrigatorio = DB::connection()->getDriverName() === 'pgsql'
+            && DB::table('pg_constraint')->where('conname', 'fornecedores_cnpj_obrigatorio')->exists();
         $linhas = [];
         for ($n = 1; $n <= self::FORNECEDORES; $n++) {
             $linhas[] = [
                 'razao_social' => sprintf('%s %s %03d Ltda', self::EMPRESAS[$n % 8], self::NOMES[intdiv($n, 8) % 10], $n),
-                'cnpj' => $n % self::SEM_CNPJ_A_CADA === 0 ? null : self::cnpj($n),
+                'cnpj' => $n % self::SEM_CNPJ_A_CADA === 0 && ! $cnpjObrigatorio ? null : self::cnpj($n),
                 'email' => $n % 5 === 0 ? null : sprintf('vendas%03d@fornecedor.test', $n),
                 'telefone' => sprintf('6533%06d', $n),
                 'created_at' => now()->subDays(900 - $n),
@@ -109,7 +116,8 @@ class MassaProducaoSeeder extends Seeder
             ];
         }
         // a carga do sistema antigo duplicou alguns itens: mesmo código, outro cadastro (com movimentações próprias)
-        for ($d = 1; $d <= self::DUPLICADOS; $d++) {
+        $codigoUnico = collect(Schema::getIndexes('produtos'))->contains(fn ($i) => $i['unique'] && $i['columns'] === ['codigo']);
+        for ($d = 1; $d <= ($codigoUnico ? 0 : self::DUPLICADOS); $d++) {
             $original = $linhas[($d * 131) % self::PRODUTOS];
             $linhas[] = ['nome' => $original['nome'].' (importado)', 'created_at' => now()->subDays(700), 'updated_at' => now()->subDays(700)] + $original;
         }
