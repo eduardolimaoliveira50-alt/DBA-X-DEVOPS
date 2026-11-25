@@ -189,9 +189,10 @@ class MassaProducaoSeeder extends Seeder
     private function recalcularSaldos(): void
     {
         DB::statement(<<<'SQL'
-            UPDATE produtos SET saldo = COALESCE((
-                SELECT SUM(CASE WHEN m.tipo = 'entrada' THEN m.quantidade ELSE -m.quantidade END)
-                  FROM movimentacoes m WHERE m.produto_id = produtos.id), 0)
+            UPDATE produtos SET saldo = m.soma
+              FROM (SELECT produto_id, SUM(CASE WHEN tipo = 'entrada' THEN quantidade ELSE -quantidade END) AS soma
+                      FROM movimentacoes GROUP BY produto_id) AS m
+             WHERE m.produto_id = produtos.id
             SQL);
         // alguns itens abaixo do mínimo, para a tela inicial ter o que mostrar
         DB::statement('UPDATE produtos SET estoque_minimo = saldo + 25 WHERE id % 37 = 0');

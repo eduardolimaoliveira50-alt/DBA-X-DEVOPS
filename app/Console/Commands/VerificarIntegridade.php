@@ -21,9 +21,11 @@ class VerificarIntegridade extends Command
     public function handle(): int
     {
         $divergentes = DB::selectOne(<<<'SQL'
-            SELECT COUNT(*) AS total FROM produtos p
-             WHERE p.saldo <> COALESCE((SELECT SUM(CASE WHEN m.tipo = 'entrada' THEN m.quantidade ELSE -m.quantidade END)
-                                          FROM movimentacoes m WHERE m.produto_id = p.id), 0)
+            SELECT COUNT(*) AS total
+              FROM produtos p
+              LEFT JOIN (SELECT produto_id, SUM(CASE WHEN tipo = 'entrada' THEN quantidade ELSE -quantidade END) AS soma
+                           FROM movimentacoes GROUP BY produto_id) m ON m.produto_id = p.id
+             WHERE p.saldo <> COALESCE(m.soma, 0)
             SQL)->total;
         $negativos = DB::table('produtos')->where('saldo', '<', 0)->count();
         $orfas = DB::table('movimentacoes as m')->leftJoin('produtos as p', 'p.id', '=', 'm.produto_id')->whereNull('p.id')->count();
