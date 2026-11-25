@@ -57,7 +57,7 @@ md ""
 
 echo "== 1. DBA: provisionamento do banco de staging (uma vez por ambiente)"
 sudo -u postgres env ALMOX_MIGRATOR_PASSWORD="$ALMOX_MIGRATOR_PASSWORD" ALMOX_APP_PASSWORD="$ALMOX_APP_PASSWORD" \
-  bash "$RAIZ/scripts/dba/criar-banco.sh" $BANCO || falhar "Provisionamento do banco de staging falhou."
+  bash -s -- $BANCO < "$RAIZ/scripts/dba/criar-banco.sh" || falhar "Provisionamento do banco de staging falhou."
 
 echo "== 2. Staging no estado de $BASE (versão em produção) com a massa de produção"
 git worktree add --detach "$TMP/base" "$BASE" >/dev/null 2>&1 || falhar "Não foi possível obter $BASE."
@@ -98,7 +98,7 @@ fi
 
 if [ "$MODO" = "main" ]; then
   echo "== Backup imediatamente antes da mudança"
-  T=$(agora); sudo -u postgres pg_dump -Fc -d $BANCO -f "$TMP/antes.dump" || falhar "Backup falhou."
+  T=$(agora); PGPASSWORD="$ALMOX_MIGRATOR_PASSWORD" pg_dump -h 127.0.0.1 -U almox_migrator -Fc -d $BANCO -f "$TMP/antes.dump" || falhar "Backup falhou."
   T_BACKUP=$(dur "$T" "$(agora)")
 fi
 
@@ -137,9 +137,9 @@ md "- ✅ Menor privilégio: \`almox_app\` não consegue DROP/ALTER (só DML)."
 if [ "$MODO" = "main" ]; then
   echo "== Restauração cronometrada do backup (ensaio do plano de recuperação)"
   sudo -u postgres psql -qc "CREATE DATABASE almox_restore OWNER almox_migrator"
-  T=$(agora); sudo -u postgres pg_restore -d almox_restore --no-owner --role=almox_migrator "$TMP/antes.dump" || falhar "Restauração do backup falhou."
+  T=$(agora); PGPASSWORD="$ALMOX_MIGRATOR_PASSWORD" pg_restore -h 127.0.0.1 -U almox_migrator -d almox_restore --no-owner "$TMP/antes.dump" || falhar "Restauração do backup falhou."
   T_RESTORE=$(dur "$T" "$(agora)")
-  ORIG=$(sudo -u postgres psql -qtA -d almox_restore -c "SELECT count(*) FROM movimentacoes")
+  ORIG=$(PGPASSWORD="$ALMOX_MIGRATOR_PASSWORD" psql -h 127.0.0.1 -U almox_migrator -qtA -d almox_restore -c "SELECT count(*) FROM movimentacoes")
   md "- ✅ Backup antes da mudança em ${T_BACKUP}s; restauração completa em **${T_RESTORE}s** ($ORIG movimentações recuperadas) = RTO medido."
 fi
 

@@ -35,9 +35,9 @@ steps:
     sudo systemctl start postgresql.service
     pg_isready -h 127.0.0.1 -t 30
     sudo -u postgres psql -tAc "SELECT version()"
-    # o mesmo script que o DBA usa nos outros ambientes
+    # o mesmo script que o DBA usa nos outros ambientes (via stdin: o usuário postgres não lê /home/vsts)
     sudo -u postgres env ALMOX_MIGRATOR_PASSWORD="$ALMOX_MIGRATOR_PASSWORD" ALMOX_APP_PASSWORD="$ALMOX_APP_PASSWORD" \
-      bash scripts/dba/criar-banco.sh almox_testing
+      bash -s -- almox_testing < scripts/dba/criar-banco.sh
   displayName: 'PostgreSQL efêmero + provisionamento do DBA (banco de testes)'
 
 - bash: |
