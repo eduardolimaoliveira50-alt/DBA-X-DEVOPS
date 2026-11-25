@@ -1,0 +1,11 @@
+.git
+.env
+.env.testing
+vendor
+node_modules
+tests
+docs
+storage/logs/*
+storage/framework/cache/data/*
+storage/framework/sessions/*
+storage/framework/views/*

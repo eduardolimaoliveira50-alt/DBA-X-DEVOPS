@@ -16,6 +16,11 @@ class ClientesFicticiosSeeder extends Seeder
 {
     public function run(): void
     {
+        // Idempotente: a publicação roda o seeder a cada inicialização e não pode duplicar a massa.
+        if (DB::table('clientes')->exists()) {
+            return;
+        }
+
         $total = (int) env('LAB_CLIENTES', 5000);
         $temEmail = Schema::hasColumn('clientes', 'email');
         $temCorporativo = Schema::hasColumn('clientes', 'email_corporativo');

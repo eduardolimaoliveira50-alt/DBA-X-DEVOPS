@@ -1,0 +1,26 @@
+# Blueprint do Render (https://render.com/docs/blueprint-spec): tudo no plano GRATUITO.
+# No painel do Render: New > Blueprint > escolher este repositório do GitHub.
+# O banco gratuito expira depois de ~30 dias (suficiente para a apresentação).
+services:
+  - type: web
+    name: lab-dba
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /up
+    autoDeploy: true
+    envVars:
+      - key: DB_URL
+        fromDatabase:
+          name: lab-dba-db
+          property: connectionString
+      - key: LAB_CLIENTES
+        value: "2000"
+
+databases:
+  - name: lab-dba-db
+    plan: free
+    region: oregon
+    databaseName: lab_dba
+    user: lab_dba

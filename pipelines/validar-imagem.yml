@@ -1,0 +1,40 @@
+# Validação manual da imagem de publicação (Render): build + container contra o PostgreSQL do agente.
+# Não dispara sozinho. Custo zero: job Microsoft-hosted gratuito; a imagem não é publicada em lugar nenhum.
+trigger: none
+pr: none
+
+pool:
+  vmImage: ubuntu-24.04
+
+jobs:
+- job: imagem
+  displayName: 'Build e smoke test da imagem'
+  timeoutInMinutes: 15
+  steps:
+  - bash: |
+      set -euo pipefail
+      sudo systemctl start postgresql.service
+      pg_isready -h 127.0.0.1 -t 30
+      sudo -u postgres psql -v ON_ERROR_STOP=1 -c "CREATE ROLE lab_dba LOGIN PASSWORD 'lab_dba'" -c "CREATE DATABASE lab_dba OWNER lab_dba"
+    displayName: 'PostgreSQL do agente (simula o banco do Render)'
+
+  - bash: docker build -t lab-dba:teste .
+    displayName: 'docker build'
+
+  - bash: |
+      set -euo pipefail
+      docker run -d --name lab --network host \
+        -e DB_URL=postgresql://lab_dba:lab_dba@127.0.0.1:5432/lab_dba -e PORT=10000 -e LAB_CLIENTES=2000 \
+        -e RENDER_GIT_COMMIT=$(Build.SourceVersion) lab-dba:teste
+      for i in $(seq 1 30); do curl -fs http://127.0.0.1:10000/up >/dev/null && break; sleep 2; done
+      docker logs lab
+      curl -fsS http://127.0.0.1:10000/ -o painel.html
+      grep -q 'Fase atual do esquema' painel.html
+      grep -q 'cliente00001@exemplo.com' painel.html
+      sed -e 's/<[^>]*>/ /g' painel.html | tr -s ' \n' | head -c 1500; echo
+      echo "== reinício não duplica a massa"
+      docker restart lab
+      for i in $(seq 1 30); do curl -fs http://127.0.0.1:10000/up >/dev/null && break; sleep 2; done
+      sudo -u postgres psql -tAc "SELECT count(*) FROM clientes" lab_dba | grep -qx 2000
+      echo ok
+    displayName: 'Sobe o container e confere o painel'
